@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# setup dev stack for laravel (without mysql-server)
+
+cd ~
+
+# update sources
+sudo apt-get update
+
+# upgrade distro to latest version 
+sudo apt-get upgrade
+
+# install apache, mysql, php and others...
+
+sudo apt-get install apache2
+
+sudo apt-get install mysql-client-core-5.6
+
+sudo apt-get install mysql-client-5.6
+
+sudo apt-get install php5
+
+sudo apt-get install php5-cli
+
+sudo apt-get install php5-json
+
+sudo apt-get install php5-curl
+
+sudo apt-get install php5-mcrypt
+
+# create symbolic link of mcrypt.ini
+sudo ln -s /etc/php5/conf.d/mcrypt.ini /etc/php5/mods-available
+ 
+# enable mcrypt
+sudo php5enmod mcrypt
+
+# check if mcrypt is enabled
+php --ri mcrypt
+
+# install curl
+sudo apt-get install curl
+
+# install composer
+curl -s http://getcomposer.org/installer | php
+
+# move .phar file and rename it so we can run composer from anywhere
+sudo mv composer.phar /usr/local/bin/composer
+
+# test if composer works - should display a description of composer
+composer about
+
+# enable apache rewrite
+sudo a2enmod rewrite
+
+# restart apache
+sudo service apache2 restart
+
+# done!

@@ -1,2 +1,2 @@
 # bin
-Generic dumping ground for bash scripts
+Dumping grounds for generic bash scripts

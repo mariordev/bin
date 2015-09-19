@@ -1,0 +1,215 @@
+#!/bin/bash
+# -----------------------------------------------------------
+# laraveldev
+# -----------------------------------------------------------
+#
+# Setup local dev environment and create a new laravel project
+# complete with a local virtual host. Ideal for setting up a
+# dev environment on a new computer.
+#
+# Author: Mario Rodriguez, June 2014.
+#
+
+
+# gather user input and validate
+# -----------------------------------------------------------
+echo
+echo -n "Enter the project name ( Example: myapp ): "
+read projectname
+
+if [ -z ${projectname} ]; then
+  echo "You must enter a project name. Command canceled."
+  echo
+  exit
+fi
+
+if echo ${projectname} | grep -q "/"; then
+  echo "Project name cannot contain '/' (slash). Command canceled."
+  echo
+  exit
+fi
+
+echo
+echo -n "Where do you want to create this project? ( Example: /home/[user]/sites ): "
+read sitespath
+
+if [ -z ${sitespath} ]; then
+  echo "You must enter the path where you want to create the project folder. Command canceled."
+  echo
+  exit
+fi
+
+# path must start at the root
+if [ ${sitespath:0:1} != "/" ]; then
+  sitespath="/${sitespath}"
+fi
+
+# remove any trailing slash, we add it later when needed
+sitespath=${sitespath%%/}
+
+# build the full path of the project folder
+projectpath="${sitespath}/${projectname}"
+
+if [ -d ${projectpath} ]; then
+  echo -n "That project already exists. Command canceled."
+  echo
+  exit
+fi
+
+
+# confirm action
+# -----------------------------------------------------------
+echo
+echo -n "A new laravel project will be created in ${projectpath}. Continue? (y|n): "
+read answer
+
+if [ -z ${answer} ]; then
+  echo "You must enter 'y' or 'Y' to continue. Command canceled."
+  echo 
+  exit
+fi
+
+if [ ${answer} != "y" ] && [ ${answer} != "Y" ]; then
+  echo "Command canceled at your request."
+  echo
+  exit
+fi
+
+# ensure we are in home directory and off we go!
+cd ~
+
+
+# update sources
+# -----------------------------------------------------------
+sudo apt-get -y update
+
+
+# install required software
+# -----------------------------------------------------------
+sudo apt-get -y install apache2
+sudo apt-get -y install mysql-server
+sudo apt-get -y install php5
+
+
+# install php extensions
+# -----------------------------------------------------------
+sudo apt-get -y install php5-cli
+sudo apt-get -y install php5-json
+sudo apt-get -y install php5-mysql
+sudo apt-get -y install php5-xdebug
+sudo apt-get -y install php5-mcrypt
+
+# create symbolic link of mcrypt.ini, if needed
+if [ ! -f "/etc/php5/mods-available/mcrypt.ini" ]; then
+  sudo ln -s /etc/php5/conf.d/mcrypt.ini /etc/php5/mods-available
+fi
+ 
+# enable mcrypt
+sudo php5enmod mcrypt
+
+
+# install laravel, if not installed
+# -----------------------------------------------------------
+sudo apt-get install curl
+
+# download composer
+if ! which composer > /dev/null; then 
+  curl -s http://getcomposer.org/installer | php
+  sudo mv composer.phar /usr/local/bin/composer
+fi
+
+# download laravel
+if ! type laravel > /dev/null; then 
+  wget http://laravel.com/laravel.phar
+  sudo mv laravel.phar /usr/local/bin/laravel
+fi
+
+
+# create new project
+# -----------------------------------------------------------
+if [ ! -d ${projectpath} ]; then
+  mkdir -p ${projectpath}
+  cd ${sitespath}
+  composer create-project laravel/laravel ${projectname} --prefer-dist
+fi
+
+# give write acess to storage folder
+sudo chmod -R ugo+w ${projectpath}/app/storage
+
+
+# create .gitignore file
+# -----------------------------------------------------------
+echo "
+# laravel
+bootstrap/compiled.php
+vendor
+composer.phar
+composer.lock
+.env.*.php
+.env.php
+
+# phpStorm
+.idea
+
+# apache
+error.log
+access.log
+
+# netbeans
+nbproject
+
+# aptana
+.project
+.settings
+
+# mac
+.DS_STORE
+.DS_Store
+.DS_STORE?
+
+# windows
+Thumbs.db" > ${projectpath}/.gitignore
+
+
+# create virtual host
+# -----------------------------------------------------------
+echo "
+<VirtualHost *:80>
+  <Directory ${projectpath}>
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+  </Directory>
+ 
+  ServerName ${projectname}.local
+  ServerAdmin webmaster@localhost
+  DocumentRoot ${projectpath}/public
+ 
+  ErrorLog ${projectpath}/error.log
+  CustomLog ${projectpath}/access.log combined
+</VirtualHost>" > ${projectname}.conf
+
+# move it to sites-available
+sudo mv ${projectname}.conf /etc/apache2/sites-available/
+
+
+# add site to hosts file
+# -----------------------------------------------------------
+if ! grep "${projectname}.local" /etc/hosts > /dev/null; then
+  cp /etc/hosts ${projectpath}
+  echo "127.0.0.1   ${projectname}.local" >> ${projectpath}/hosts
+  sudo mv ${projectpath}/hosts /etc/
+fi
+
+
+# enable apache site and mod rewrite, then restart
+# -----------------------------------------------------------
+sudo a2ensite ${projectname}.conf
+sudo a2enmod rewrite
+sudo service apache2 restart
+
+echo
+echo "Done!"
+echo
+echo "In your browser, go to http://${projectname}.local to verify installation."
+echo
